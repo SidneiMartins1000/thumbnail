@@ -7,7 +7,6 @@ import Spinner from './Spinner';
 import ImageEditor from './ImageEditor';
 import { SparklesIcon } from './icons/SparklesIcon';
 import { ImageIcon } from './icons/ImageIcon';
-import { InfoIcon } from './icons/InfoIcon';
 import { STYLE_OPTIONS, ASPECT_RATIO_OPTIONS, COLOR_PALETTE_OPTIONS, BORDER_TYPE_OPTIONS, RANDOM_PROMPTS } from '../constants';
 
 interface ThumbnailGeneratorProps {
@@ -43,15 +42,14 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
 
   const applyBorderToImage = (base64Image: string, borderOptions: ThumbnailOptions): Promise<string> => {
     return new Promise((resolve, reject) => {
-      if (borderOptions.borderType === 'none' || borderOptions.borderWidth === 0) {
-        resolve(base64Image);
-        return;
-      }
-
+      // Mesmo se não houver borda, passamos pelo Canvas para "rasterizar" o SVG
+      // Isso garante que o editor receba uma imagem manipulável e não um vetor puro
       const img = new Image();
+      img.crossOrigin = "anonymous";
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const borderWidth = borderOptions.borderWidth * 2; 
+        const borderWidth = (borderOptions.borderType !== 'none') ? borderOptions.borderWidth * 2 : 0;
+        
         canvas.width = img.width + borderWidth;
         canvas.height = img.height + borderWidth;
         const ctx = canvas.getContext('2d');
@@ -59,6 +57,10 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
         if (!ctx) {
           return reject(new Error('Não foi possível obter o contexto do canvas.'));
         }
+
+        // Preencher fundo (caso o SVG seja transparente em algum ponto)
+        ctx.fillStyle = '#1a1a1a'; // Dark bg fallback
+        ctx.fillRect(0,0, canvas.width, canvas.height);
 
         if (borderOptions.borderType === 'solid') {
           ctx.fillStyle = borderOptions.borderColor1;
@@ -71,11 +73,17 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
           ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
-        ctx.drawImage(img, borderOptions.borderWidth, borderOptions.borderWidth, img.width, img.height);
+        // Draw image centered
+        const x = (borderOptions.borderType !== 'none') ? borderOptions.borderWidth : 0;
+        const y = (borderOptions.borderType !== 'none') ? borderOptions.borderWidth : 0;
+        ctx.drawImage(img, x, y, img.width, img.height);
         
-        resolve(canvas.toDataURL('image/jpeg'));
+        resolve(canvas.toDataURL('image/jpeg', 0.95));
       };
-      img.onerror = () => reject(new Error('Falha ao carregar a imagem gerada.'));
+      img.onerror = (e) => {
+          console.error("Erro ao carregar imagem no canvas:", e);
+          reject(new Error('Falha ao processar a imagem gerada.'));
+      };
       img.src = base64Image;
     });
   };
@@ -170,9 +178,10 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
 
     try {
       const baseImageUrl = await generateThumbnail(finalPrompt, options.aspectRatio, apiKey);
-      const imageWithBorder = await applyBorderToImage(baseImageUrl, options);
-      setGeneratedImage(imageWithBorder);
-      setIsEditing(true); // Switch to editing mode
+      // SVG precisa ser convertido para raster via canvas para aplicar bordas corretamente
+      const processedImage = await applyBorderToImage(baseImageUrl, options);
+      setGeneratedImage(processedImage);
+      setIsEditing(true); 
     } catch (err) {
       handleApiError(err);
     } finally {
@@ -186,13 +195,6 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
       setError(null);
   }
 
-  // Helper to detect billing error regardless of how it was thrown
-  const isBillingError = error && (
-      error === 'BILLING_REQUIRED' || 
-      error.toLowerCase().includes('billed users') || 
-      error.toLowerCase().includes('billing')
-  );
-
   if (isEditing && generatedImage) {
       return <ImageEditor baseImage={generatedImage} onBack={handleGoBackToGenerator} />;
   }
@@ -203,8 +205,8 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
         {isLoading ? (
              <div className="text-center py-20">
                 <Spinner large={true} />
-                <p className="mt-4 text-gray-400 animate-pulse text-lg">Criando sua obra-prima...</p>
-                <p className="mt-2 text-sm text-gray-500">Isso pode levar alguns instantes.</p>
+                <p className="mt-4 text-gray-400 animate-pulse text-lg">Criando sua Arte Vetorial...</p>
+                <p className="mt-2 text-sm text-gray-500">Utilizando modelo gratuito (sem cobrança)...</p>
              </div>
         ) : (
         <form onSubmit={handleSubmit}>
@@ -350,30 +352,8 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
 
             {error && (
             <div className="text-center p-4 rounded-md bg-red-900/30 border border-red-800">
-                {isBillingError ? (
-                     <div className="flex flex-col items-center gap-3">
-                        <h4 className="text-red-200 font-bold text-lg">⚠️ Ação Necessária: Ativar Faturamento</h4>
-                        <p className="text-red-300 text-sm">
-                            A API de imagens (Imagen) exige que você adicione um cartão de crédito ao seu projeto no Google Cloud, mesmo para uso gratuito (Free Tier).
-                        </p>
-                        <a 
-                            href="https://console.cloud.google.com/billing" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="bg-red-600 text-white font-bold py-2 px-6 rounded-full hover:bg-red-500 transition shadow-lg mt-2"
-                        >
-                            Configurar Faturamento no Google Cloud
-                        </a>
-                        <div className="mt-4 text-xs text-left w-full bg-black/20 p-2 rounded">
-                            <p className="text-gray-400 font-mono break-all">{error.length > 150 ? error.substring(0, 150) + '...' : error}</p>
-                        </div>
-                        <button onClick={onInvalidApiKey} className="text-xs text-gray-400 underline hover:text-white mt-2">
-                            Usar outra Chave de API
-                        </button>
-                     </div>
-                ) : (
-                    <p className="text-red-400 break-words">{error}</p>
-                )}
+                <p className="text-red-400 break-words font-bold mb-1">Ops!</p>
+                <p className="text-red-300 text-sm break-words">{error}</p>
             </div>
             )}
 
@@ -382,7 +362,7 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
               className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-bold py-3 px-4 rounded-md shadow-lg hover:shadow-indigo-500/30 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-purple-500 transition-all duration-200 transform hover:-translate-y-0.5"
             >
                 <SparklesIcon />
-                Gerar Thumbnail
+                Gerar Thumbnail (Grátis)
             </button>
           </div>
         </form>
