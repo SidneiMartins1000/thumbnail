@@ -15,7 +15,9 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
     // Otimizando o prompt para o modelo Flash Image que depende da descrição textual para proporção
     const promptWithRatio = `${prompt}. Create a high-quality image with visual impact. Aspect Ratio: ${aspectRatio}. Style: detailed, professional.`;
 
-    // IMPORTANTE: Usando gemini-2.5-flash-image para evitar erro de faturamento do Imagen 4.0
+    // IMPORTANTE: Usando gemini-2.5-flash-image. 
+    // Se este modelo falhar com erro de "billed users", verifique se sua chave de API tem permissão 
+    // ou se o index.html não está carregando scripts conflitantes (importmap).
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -45,9 +47,9 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
         if (error.message.includes('API key not valid') || error.message.includes('permission') || error.message.includes('invalid')) {
             throw new Error("Sua Chave de API parece ser inválida. Por favor, verifique e tente novamente.");
         }
-        // Se ainda cair no erro de billed users, é porque o deploy antigo ainda está ativo
+        // Erro específico de Billing (Faturamento)
         if (error.message.includes('billed users') || error.message.includes('400')) {
-             throw new Error("Erro de versão: O site ainda está tentando usar o modelo pago. Por favor, aguarde o novo deploy no Vercel finalizar.");
+             throw new Error("Acesso negado pelo Google (Billing). Tente gerar uma nova chave de API em um projeto diferente no Google AI Studio ou aguarde alguns instantes.");
         }
     }
     throw new Error("Falha ao se comunicar com a API do Gemini. Verifique o console para mais detalhes.");
