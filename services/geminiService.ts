@@ -29,15 +29,15 @@ const getDimensions = (aspectRatio: string) => {
     }
 }
 
-export const generateThumbnail = async (prompt: string, aspectRatio: string, apiKey: string): Promise<string> => {
+// Renomeado para garantir que o código novo seja utilizado e evitar chamadas à API antiga em cache
+export const createSvgThumbnail = async (prompt: string, aspectRatio: string, apiKey: string): Promise<string> => {
   try {
     const ai = getAiClient(apiKey);
-    console.log(`Generating SVG with prompt: "${prompt}"`);
+    console.log(`Gerando Thumbnail SVG (Modo Gratuito) para: "${prompt}"`);
 
     const { w, h } = getDimensions(aspectRatio);
 
-    // Usamos o modelo de TEXTO (Flash) para gerar SVG, pois a API de Imagem exige Billing.
-    // Isso permite que o app funcione gratuitamente.
+    // Prompt de sistema ultra-específico para SVG robusto
     const systemPrompt = `You are an expert graphic designer and SVG artist. 
     Your task is to generate a high-quality, colorful, and professional YouTube Thumbnail using ONLY raw SVG code.
     
@@ -46,14 +46,15 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
     2. The SVG MUST have a viewBox="0 0 ${w} ${h}" and preserveAspectRatio="xMidYMid slice".
     3. Use width="${w}" and height="${h}" in the svg tag.
     4. Use rich gradients, shadows, and distinct vector shapes.
-    5. Do NOT use external images (<image href="...">) as they will not load. Draw everything with vectors.
-    6. Style request: Professional, vibrant, high click-through rate.`;
+    5. Do NOT use external images (<image href="...">) as they will not load. Draw everything with vectors (paths, rects, circles).
+    6. Style request: Professional, vibrant, high click-through rate.
+    7. Do NOT add any text outside of the SVG tags.`;
 
-    const userPrompt = `Create a thumbnail description: ${prompt}. 
-    Make it detailed and visually striking.`;
+    const userPrompt = `Create a thumbnail visual description based on this idea: ${prompt}. 
+    Render the result directly as SVG code.`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash', // Modelo de texto é free e não bloqueia por billing
+      model: 'gemini-2.5-flash', // Modelo de texto (Free Tier)
       contents: userPrompt,
       config: {
         systemInstruction: systemPrompt,
@@ -66,8 +67,12 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
     const svgMatch = text.match(/<svg[\s\S]*?<\/svg>/i);
     if (svgMatch) {
         text = svgMatch[0];
-    } else if (!text.includes('<svg')) {
-         throw new Error("O modelo não gerou um código SVG válido.");
+    } else {
+         // Fallback de limpeza
+         text = text.replace(/```xml/g, '').replace(/```svg/g, '').replace(/```/g, '');
+         if (!text.includes('<svg')) {
+            throw new Error("O modelo não gerou um código SVG válido.");
+         }
     }
 
     // Codifica para Base64 de forma segura para UTF-8 (emojis, acentos)
@@ -84,6 +89,11 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
     
     if (errorStr.includes('quota') || errorStr.includes('429')) {
          throw new Error("Cota da API excedida temporariamente. Tente novamente em instantes.");
+    }
+
+    // Se cair no erro de Billing aqui, é algo muito atípico para o modelo Flash, mas vamos tratar
+    if (errorStr.includes('billing') || errorStr.includes('billed users')) {
+        throw new Error("Erro inesperado de faturamento no modelo gratuito. Tente gerar novamente.");
     }
 
     if (error instanceof Error) {
