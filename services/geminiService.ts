@@ -29,11 +29,11 @@ const getDimensions = (aspectRatio: string) => {
     }
 }
 
-// Renomeado para garantir que o código novo seja utilizado e evitar chamadas à API antiga em cache
-export const createSvgThumbnail = async (prompt: string, aspectRatio: string, apiKey: string): Promise<string> => {
+// V2: Renomeado para garantir que o código novo seja utilizado e evitar chamadas à API antiga em cache
+export const generateSvgThumbnailV2 = async (prompt: string, aspectRatio: string, apiKey: string): Promise<string> => {
   try {
     const ai = getAiClient(apiKey);
-    console.log(`Gerando Thumbnail SVG (Modo Gratuito) para: "${prompt}"`);
+    console.log(`[V2] Iniciando geração SVG com Gemini 2.5 Flash para: "${prompt}"`);
 
     const { w, h } = getDimensions(aspectRatio);
 
@@ -62,6 +62,7 @@ export const createSvgThumbnail = async (prompt: string, aspectRatio: string, ap
     });
 
     let text = response.text || "";
+    console.log("[V2] Resposta recebida do Gemini. Processando SVG...");
     
     // Limpeza para extrair apenas o SVG caso o modelo coloque markdown
     const svgMatch = text.match(/<svg[\s\S]*?<\/svg>/i);
@@ -80,7 +81,7 @@ export const createSvgThumbnail = async (prompt: string, aspectRatio: string, ap
     return `data:image/svg+xml;base64,${base64}`;
 
   } catch (error: any) {
-    console.error("Erro ao gerar thumbnail (SVG):", error);
+    console.error("Erro ao gerar thumbnail (SVG V2):", error);
     const errorStr = getErrorString(error).toLowerCase();
 
     if (errorStr.includes('api key not valid') || errorStr.includes('permission') || errorStr.includes('invalid api key')) {
@@ -91,9 +92,8 @@ export const createSvgThumbnail = async (prompt: string, aspectRatio: string, ap
          throw new Error("Cota da API excedida temporariamente. Tente novamente em instantes.");
     }
 
-    // Se cair no erro de Billing aqui, é algo muito atípico para o modelo Flash, mas vamos tratar
     if (errorStr.includes('billing') || errorStr.includes('billed users')) {
-        throw new Error("Erro inesperado de faturamento no modelo gratuito. Tente gerar novamente.");
+        throw new Error("Erro de faturamento detectado. Certifique-se de que está usando o 'Modo Gratuito' atualizado.");
     }
 
     if (error instanceof Error) {
