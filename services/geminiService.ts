@@ -15,7 +15,7 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
     // Otimizando o prompt para o modelo Flash Image
     const promptWithRatio = `${prompt}. Create a high-quality image with visual impact. Aspect Ratio: ${aspectRatio}. Style: detailed, professional, youtube thumbnail.`;
 
-    // O modelo gemini-2.5-flash-image é o recomendado para geração de imagens via generateContent
+    // O modelo gemini-2.5-flash-image é o recomendado para geração de imagens
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -42,14 +42,19 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
     
     if (error instanceof Error) {
         const msg = error.message.toLowerCase();
-        
+        const apiErrorBody = (error as any).body || (error as any).response; // Tenta pegar o corpo do erro da API se disponível
+
         if (msg.includes('api key not valid') || msg.includes('permission') || msg.includes('invalid api key')) {
             throw new Error("Sua Chave de API parece ser inválida. Verifique se copiou corretamente do Google AI Studio.");
         }
         
-        if (msg.includes('billed users') || msg.includes('quota')) {
-             // Mensagem amigável para erro de faturamento/cota
-             throw new Error("O Google restringiu o uso deste modelo para esta chave. Tente: 1. Criar uma nova chave em um novo projeto no Google AI Studio. 2. Verificar se seu projeto tem faturamento ativado (embora o modelo deva ter free tier).");
+        // Erro específico de billing para imagem
+        if (msg.includes('imagen api is only accessible to billed users') || msg.includes('billed users')) {
+             throw new Error("⚠️ A geração de imagens requer que o projeto no Google AI Studio tenha faturamento ativado (Billing). Adicione um método de pagamento no seu projeto do Google Cloud para usar este recurso.");
+        }
+
+        if (msg.includes('quota')) {
+             throw new Error("Você atingiu sua cota de uso da API. Tente novamente mais tarde.");
         }
         
         if (msg.includes('429')) {
@@ -66,7 +71,7 @@ export const enhancePrompt = async (currentPrompt: string, apiKey: string): Prom
         const fullPrompt = `Você é um especialista em criar prompts para IA de geração de imagem. Melhore o seguinte prompt do usuário para ser mais descritivo, vívido e adequado para gerar uma imagem de alta qualidade para thumbnail de YouTube. Retorne APENAS o prompt aprimorado, em inglês (para melhor qualidade), sem aspas e sem explicações. Prompt original: "${currentPrompt}"`;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.5-flash', // Modelo de texto continua free
             contents: fullPrompt,
         });
 
@@ -93,7 +98,7 @@ export const generatePromptFromImage = async (base64Image: string, mimeType: str
     };
 
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash', // Modelo de texto/multimodal continua free
         contents: { parts: [imagePart, textPart] },
     });
 
