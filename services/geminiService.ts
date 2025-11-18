@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
 
 const getAiClient = (apiKey: string) => {
   if (!apiKey) {
@@ -12,26 +12,43 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
     const ai = getAiClient(apiKey);
     console.log(`Generating with prompt: "${prompt}" and aspect ratio: ${aspectRatio}`);
     
-    const response = await ai.models.generateImages({
-      model: 'imagen-4.0-generate-001',
-      prompt: prompt,
+    // Otimizando o prompt para o modelo Flash Image que depende da descrição textual para proporção
+    const promptWithRatio = `${prompt}. Create a high-quality image with visual impact. Aspect Ratio: ${aspectRatio}. Style: detailed, professional.`;
+
+    // IMPORTANTE: Usando gemini-2.5-flash-image para evitar erro de faturamento do Imagen 4.0
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: {
+        parts: [{ text: promptWithRatio }]
+      },
       config: {
-        numberOfImages: 1,
-        outputMimeType: 'image/jpeg',
-        aspectRatio: aspectRatio,
+        responseModalities: [Modality.IMAGE], 
       },
     });
 
-    if (response.generatedImages && response.generatedImages.length > 0) {
-      const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-      return `data:image/jpeg;base64,${base64ImageBytes}`;
-    } else {
-      throw new Error("A API não retornou imagens.");
+    // O formato de resposta do generateContent para imagens é via inlineData
+    const parts = response.candidates?.[0]?.content?.parts;
+    if (parts && parts.length > 0) {
+        for (const part of parts) {
+            if (part.inlineData && part.inlineData.data) {
+                return `data:image/jpeg;base64,${part.inlineData.data}`;
+            }
+        }
     }
-  } catch (error) {
+    
+    throw new Error("A API não retornou imagens.");
+
+  } catch (error: any) {
     console.error("Erro ao gerar thumbnail:", error);
-    if (error instanceof Error && (error.message.includes('API key not valid') || error.message.includes('permission') || error.message.includes('invalid'))) {
-        throw new Error("Sua Chave de API parece ser inválida. Por favor, verifique e tente novamente.");
+    
+    if (error instanceof Error) {
+        if (error.message.includes('API key not valid') || error.message.includes('permission') || error.message.includes('invalid')) {
+            throw new Error("Sua Chave de API parece ser inválida. Por favor, verifique e tente novamente.");
+        }
+        // Se ainda cair no erro de billed users, é porque o deploy antigo ainda está ativo
+        if (error.message.includes('billed users') || error.message.includes('400')) {
+             throw new Error("Erro de versão: O site ainda está tentando usar o modelo pago. Por favor, aguarde o novo deploy no Vercel finalizar.");
+        }
     }
     throw new Error("Falha ao se comunicar com a API do Gemini. Verifique o console para mais detalhes.");
   }
@@ -47,7 +64,7 @@ export const enhancePrompt = async (currentPrompt: string, apiKey: string): Prom
             contents: fullPrompt,
         });
 
-        return response.text.trim();
+        return response.text ? response.text.trim() : currentPrompt;
     } catch (error) {
         console.error("Erro ao melhorar o prompt:", error);
         if (error instanceof Error && (error.message.includes('API key not valid') || error.message.includes('permission') || error.message.includes('invalid'))) {
@@ -76,7 +93,7 @@ export const generatePromptFromImage = async (base64Image: string, mimeType: str
         contents: { parts: [imagePart, textPart] },
     });
 
-    return response.text.trim();
+    return response.text ? response.text.trim() : "";
   } catch (error) {
     console.error("Erro ao gerar prompt da imagem:", error);
     if (error instanceof Error && (error.message.includes('API key not valid') || error.message.includes('permission') || error.message.includes('invalid'))) {
