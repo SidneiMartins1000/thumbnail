@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import ThumbnailGenerator from './components/ThumbnailGenerator';
 import ApiKeyManager from './components/ApiKeyManager';
@@ -8,6 +9,12 @@ const App: React.FC = () => {
   const [apiKey, saveApiKey, clearApiKey] = useApiKey();
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   
+  useEffect(() => {
+    // Clear old console logs to help debugging
+    console.clear();
+    console.log("App mounted. Environment: Free Mode (SVG).");
+  }, []);
+
   const handleKeySubmit = (key: string) => {
     saveApiKey(key);
     setApiKeyError(null); // Clear previous errors
@@ -28,6 +35,13 @@ const App: React.FC = () => {
       
       <main className="container mx-auto px-4 py-8">
         
+        {/* Banner de Status Gratuito */}
+        <div className="flex justify-center mb-6">
+            <span className="px-4 py-1 rounded-full bg-indigo-900/50 border border-indigo-500 text-indigo-300 text-sm font-semibold flex items-center gap-2">
+                ⚡ Modo Gratuito (SVG) Ativado
+            </span>
+        </div>
+
         {/* Botão Promocional "Money" */}
         <div className="flex justify-center mb-10">
           <a 
@@ -47,10 +61,11 @@ const App: React.FC = () => {
           </a>
         </div>
 
-        <ThumbnailGenerator apiKey={apiKey} onInvalidApiKey={handleInvalidApiKey} />
+        <ThumbnailGenerator key="v2-generator" apiKey={apiKey} onInvalidApiKey={handleInvalidApiKey} />
       </main>
       <footer className="text-center py-4 text-gray-500 text-sm">
         <p>Desenvolvido por Sidnei Martins para criadores de conteúdo.</p>
+        <p className="text-xs text-gray-600 mt-1">v2.0 Free</p>
       </footer>
     </div>
   );
