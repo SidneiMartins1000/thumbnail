@@ -28,8 +28,8 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySubmit, error }) => 
            <p className="text-xs text-gray-400 text-center">
              🔒 <strong>Segurança:</strong> Sua chave é salva <strong>apenas no seu navegador</strong> (LocalStorage).
            </p>
-           <p className="text-xs text-yellow-500 text-center border-t border-gray-700 pt-2">
-             ⚠️ <strong>Importante:</strong> Para gerar imagens, seu projeto no Google deve ter um <strong>cartão de crédito vinculado (Billing)</strong>, mesmo para uso gratuito.
+           <p className="text-xs text-green-400 text-center border-t border-gray-700 pt-2">
+             ✅ <strong>Modo Gratuito Ativado:</strong> Este app utiliza o modelo Flash (Texto) para gerar artes, não requerendo cartão de crédito.
            </p>
         </div>
 
