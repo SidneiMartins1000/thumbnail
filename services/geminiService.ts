@@ -7,6 +7,17 @@ const getAiClient = (apiKey: string) => {
   return new GoogleGenAI({ apiKey });
 };
 
+// Função auxiliar robusta para extrair texto de erros
+const getErrorString = (error: any): string => {
+    if (typeof error === 'string') return error;
+    if (error instanceof Error) return error.message + ' ' + (error.stack || '');
+    try {
+        return JSON.stringify(error, Object.getOwnPropertyNames(error));
+    } catch {
+        return String(error);
+    }
+};
+
 export const generateThumbnail = async (prompt: string, aspectRatio: string, apiKey: string): Promise<string> => {
   try {
     const ai = getAiClient(apiKey);
@@ -38,30 +49,32 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
     throw new Error("A API não retornou dados de imagem válidos.");
 
   } catch (error: any) {
-    console.error("Erro ao gerar thumbnail:", error);
+    console.error("Erro ao gerar thumbnail (Raw):", error);
     
-    if (error instanceof Error) {
-        const msg = error.message.toLowerCase();
-        const apiErrorBody = (error as any).body || (error as any).response; // Tenta pegar o corpo do erro da API se disponível
-
-        if (msg.includes('api key not valid') || msg.includes('permission') || msg.includes('invalid api key')) {
-            throw new Error("Sua Chave de API parece ser inválida. Verifique se copiou corretamente do Google AI Studio.");
-        }
-        
-        // Erro específico de billing para imagem
-        if (msg.includes('imagen api is only accessible to billed users') || msg.includes('billed users')) {
-             throw new Error("⚠️ A geração de imagens requer que o projeto no Google AI Studio tenha faturamento ativado (Billing). Adicione um método de pagamento no seu projeto do Google Cloud para usar este recurso.");
-        }
-
-        if (msg.includes('quota')) {
-             throw new Error("Você atingiu sua cota de uso da API. Tente novamente mais tarde.");
-        }
-        
-        if (msg.includes('429')) {
-            throw new Error("Você atingiu o limite de requisições rápidas. Aguarde um momento e tente novamente.");
-        }
+    const errorStr = getErrorString(error).toLowerCase();
+    
+    // Verificações agressivas para erro de billing
+    if (errorStr.includes('billed users') || errorStr.includes('billing') || errorStr.includes('imagen api is only accessible to billed users')) {
+         throw new Error("BILLING_REQUIRED");
     }
-    throw new Error(`Erro na geração: ${error.message || "Falha de comunicação com a API"}`);
+
+    if (errorStr.includes('api key not valid') || errorStr.includes('permission') || errorStr.includes('invalid api key')) {
+        throw new Error("Sua Chave de API parece ser inválida. Verifique se copiou corretamente do Google AI Studio.");
+    }
+    
+    if (errorStr.includes('quota')) {
+         throw new Error("Você atingiu sua cota de uso da API. Tente novamente mais tarde.");
+    }
+    
+    if (errorStr.includes('429')) {
+        throw new Error("Você atingiu o limite de requisições rápidas. Aguarde um momento e tente novamente.");
+    }
+
+    if (error instanceof Error) {
+        throw new Error(error.message);
+    }
+    
+    throw new Error("Falha de comunicação com a API. Verifique o console.");
   }
 };
 
@@ -78,7 +91,6 @@ export const enhancePrompt = async (currentPrompt: string, apiKey: string): Prom
         return response.text ? response.text.trim() : currentPrompt;
     } catch (error) {
         console.error("Erro ao melhorar o prompt:", error);
-        // Falha silenciosa ou retorno do original em caso de erro na melhoria
         return currentPrompt;
     }
 }
