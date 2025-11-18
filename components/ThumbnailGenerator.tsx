@@ -1,7 +1,7 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import type { ThumbnailOptions } from '../types';
-import { createSvgThumbnail, enhancePrompt, generatePromptFromImage } from '../services/geminiService';
+import { generateSvgThumbnailV2, enhancePrompt, generatePromptFromImage } from '../services/geminiService';
 import OptionSelector from './OptionSelector';
 import Spinner from './Spinner';
 import ImageEditor from './ImageEditor';
@@ -35,6 +35,9 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
   const [isGeneratingFromImage, setIsGeneratingFromImage] = useState<boolean>(false);
 
+  useEffect(() => {
+    console.log("ThumbnailGenerator V2 (Free SVG Mode) Mounted.");
+  }, []);
 
   const handleOptionsChange = useCallback((newOptions: Partial<ThumbnailOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
@@ -174,17 +177,20 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
     const stylePrefix = STYLE_OPTIONS.find(opt => opt.id === options.style)?.prompt_prefix || '';
     const colorPrefix = COLOR_PALETTE_OPTIONS.find(opt => opt.id === options.colorPalette)?.prompt_prefix || '';
     
-    const finalPrompt = `${stylePrefix} ${colorPrefix} ${prompt}`;
+    // Append "vector art" hints to ensure the model knows we want shapes
+    const finalPrompt = `${stylePrefix} ${colorPrefix} ${prompt}. Vector art style, clean shapes, svg output.`;
 
     try {
-      // Usando a nova função createSvgThumbnail para garantir uso do modelo Gratuito
-      const baseImageUrl = await createSvgThumbnail(finalPrompt, options.aspectRatio, apiKey);
+      // Usando a nova função V2 para garantir uso do modelo Gratuito e quebrar cache
+      console.log("Chamando generateSvgThumbnailV2...");
+      const baseImageUrl = await generateSvgThumbnailV2(finalPrompt, options.aspectRatio, apiKey);
       
       // SVG precisa ser convertido para raster via canvas para aplicar bordas corretamente
       const processedImage = await applyBorderToImage(baseImageUrl, options);
       setGeneratedImage(processedImage);
       setIsEditing(true); 
     } catch (err) {
+      console.error("Erro no handleSubmit:", err);
       handleApiError(err);
     } finally {
       setIsLoading(false);
@@ -207,8 +213,8 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
         {isLoading ? (
              <div className="text-center py-20">
                 <Spinner large={true} />
-                <p className="mt-4 text-gray-400 animate-pulse text-lg">Gerando Arte (Modelo Gratuito)...</p>
-                <p className="mt-2 text-sm text-gray-500">Criando elementos vetoriais...</p>
+                <p className="mt-4 text-gray-400 animate-pulse text-lg">Gerando Arte Vetorial (Modo Grátis)...</p>
+                <p className="mt-2 text-sm text-gray-500">Desenhando formas e cores...</p>
              </div>
         ) : (
         <form onSubmit={handleSubmit}>
@@ -353,7 +359,7 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
             </div>
 
             {error && (
-            <div className="text-center p-4 rounded-md bg-red-900/30 border border-red-800">
+            <div className="text-center p-4 rounded-md bg-red-900/30 border border-red-800 animate-bounce-short">
                 <p className="text-red-400 break-words font-bold mb-1">Ops!</p>
                 <p className="text-red-300 text-sm break-words">{error}</p>
             </div>
