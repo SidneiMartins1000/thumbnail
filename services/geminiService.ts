@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Modality } from "@google/genai";
 
 const getAiClient = (apiKey: string) => {
@@ -9,11 +10,12 @@ const getAiClient = (apiKey: string) => {
 
 // Função auxiliar robusta para extrair texto de erros
 const getErrorString = (error: any): string => {
-    if (typeof error === 'string') return error;
-    if (error instanceof Error) return error.message + ' ' + (error.stack || '');
     try {
+        // Tenta stringificar o objeto inteiro primeiro para pegar propriedades aninhadas como 'error.message' do JSON
         return JSON.stringify(error, Object.getOwnPropertyNames(error));
     } catch {
+        if (typeof error === 'string') return error;
+        if (error instanceof Error) return error.message + ' ' + (error.stack || '');
         return String(error);
     }
 };
@@ -74,7 +76,8 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
         throw new Error(error.message);
     }
     
-    throw new Error("Falha de comunicação com a API. Verifique o console.");
+    // Fallback usando a string serializada para garantir que o usuário veja algo útil
+    throw new Error(getErrorString(error));
   }
 };
 
