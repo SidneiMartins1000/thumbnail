@@ -186,6 +186,13 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
       setError(null);
   }
 
+  // Helper to detect billing error regardless of how it was thrown
+  const isBillingError = error && (
+      error === 'BILLING_REQUIRED' || 
+      error.toLowerCase().includes('billed users') || 
+      error.toLowerCase().includes('billing')
+  );
+
   if (isEditing && generatedImage) {
       return <ImageEditor baseImage={generatedImage} onBack={handleGoBackToGenerator} />;
   }
@@ -343,26 +350,29 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
 
             {error && (
             <div className="text-center p-4 rounded-md bg-red-900/30 border border-red-800">
-                {error === 'BILLING_REQUIRED' ? (
+                {isBillingError ? (
                      <div className="flex flex-col items-center gap-3">
                         <h4 className="text-red-200 font-bold text-lg">⚠️ Ação Necessária: Ativar Faturamento</h4>
                         <p className="text-red-300 text-sm">
-                            A API de imagens (Imagen) exige que você adicione um método de pagamento ao seu projeto no Google Cloud, mesmo para uso gratuito (Free Tier).
+                            A API de imagens (Imagen) exige que você adicione um cartão de crédito ao seu projeto no Google Cloud, mesmo para uso gratuito (Free Tier).
                         </p>
                         <a 
                             href="https://console.cloud.google.com/billing" 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="bg-red-600 text-white font-bold py-2 px-6 rounded-full hover:bg-red-500 transition shadow-lg"
+                            className="bg-red-600 text-white font-bold py-2 px-6 rounded-full hover:bg-red-500 transition shadow-lg mt-2"
                         >
                             Configurar Faturamento no Google Cloud
                         </a>
+                        <div className="mt-4 text-xs text-left w-full bg-black/20 p-2 rounded">
+                            <p className="text-gray-400 font-mono break-all">{error.length > 150 ? error.substring(0, 150) + '...' : error}</p>
+                        </div>
                         <button onClick={onInvalidApiKey} className="text-xs text-gray-400 underline hover:text-white mt-2">
                             Usar outra Chave de API
                         </button>
                      </div>
                 ) : (
-                    <p className="text-red-400">{error}</p>
+                    <p className="text-red-400 break-words">{error}</p>
                 )}
             </div>
             )}
