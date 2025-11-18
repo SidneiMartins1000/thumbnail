@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback } from 'react';
 import type { ThumbnailOptions } from '../types';
-import { generateThumbnail, enhancePrompt, generatePromptFromImage } from '../services/geminiService';
+import { createSvgThumbnail, enhancePrompt, generatePromptFromImage } from '../services/geminiService';
 import OptionSelector from './OptionSelector';
 import Spinner from './Spinner';
 import ImageEditor from './ImageEditor';
@@ -177,7 +177,9 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
     const finalPrompt = `${stylePrefix} ${colorPrefix} ${prompt}`;
 
     try {
-      const baseImageUrl = await generateThumbnail(finalPrompt, options.aspectRatio, apiKey);
+      // Usando a nova função createSvgThumbnail para garantir uso do modelo Gratuito
+      const baseImageUrl = await createSvgThumbnail(finalPrompt, options.aspectRatio, apiKey);
+      
       // SVG precisa ser convertido para raster via canvas para aplicar bordas corretamente
       const processedImage = await applyBorderToImage(baseImageUrl, options);
       setGeneratedImage(processedImage);
@@ -205,8 +207,8 @@ const ThumbnailGenerator: React.FC<ThumbnailGeneratorProps> = ({ apiKey, onInval
         {isLoading ? (
              <div className="text-center py-20">
                 <Spinner large={true} />
-                <p className="mt-4 text-gray-400 animate-pulse text-lg">Criando sua Arte Vetorial...</p>
-                <p className="mt-2 text-sm text-gray-500">Utilizando modelo gratuito (sem cobrança)...</p>
+                <p className="mt-4 text-gray-400 animate-pulse text-lg">Gerando Arte (Modelo Gratuito)...</p>
+                <p className="mt-2 text-sm text-gray-500">Criando elementos vetoriais...</p>
              </div>
         ) : (
         <form onSubmit={handleSubmit}>
