@@ -24,9 +24,12 @@ const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ onKeySubmit, error }) => 
           Para criar thumbnails incríveis, insira sua chave de API do Google Gemini.
         </p>
         
-        <div className="bg-gray-900/50 p-3 rounded-md mb-6 border border-gray-700">
+        <div className="bg-gray-900/50 p-3 rounded-md mb-6 border border-gray-700 space-y-2">
            <p className="text-xs text-gray-400 text-center">
-             🔒 <strong>Segurança:</strong> Sua chave é salva <strong>apenas no seu navegador</strong> (LocalStorage) e usada para comunicar diretamente com a IA. Ela nunca é enviada para outros servidores.
+             🔒 <strong>Segurança:</strong> Sua chave é salva <strong>apenas no seu navegador</strong> (LocalStorage).
+           </p>
+           <p className="text-xs text-yellow-500 text-center border-t border-gray-700 pt-2">
+             ⚠️ <strong>Importante:</strong> Para gerar imagens, seu projeto no Google deve ter um <strong>cartão de crédito vinculado (Billing)</strong>, mesmo para uso gratuito.
            </p>
         </div>
 
