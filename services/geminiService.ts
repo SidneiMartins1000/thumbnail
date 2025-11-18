@@ -12,12 +12,10 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
     const ai = getAiClient(apiKey);
     console.log(`Generating with prompt: "${prompt}" and aspect ratio: ${aspectRatio}`);
     
-    // Otimizando o prompt para o modelo Flash Image que depende da descrição textual para proporção
-    const promptWithRatio = `${prompt}. Create a high-quality image with visual impact. Aspect Ratio: ${aspectRatio}. Style: detailed, professional.`;
+    // Otimizando o prompt para o modelo Flash Image
+    const promptWithRatio = `${prompt}. Create a high-quality image with visual impact. Aspect Ratio: ${aspectRatio}. Style: detailed, professional, youtube thumbnail.`;
 
-    // IMPORTANTE: Usando gemini-2.5-flash-image. 
-    // Se este modelo falhar com erro de "billed users", verifique se sua chave de API tem permissão 
-    // ou se o index.html não está carregando scripts conflitantes (importmap).
+    // O modelo gemini-2.5-flash-image é o recomendado para geração de imagens via generateContent
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -28,7 +26,6 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
       },
     });
 
-    // O formato de resposta do generateContent para imagens é via inlineData
     const parts = response.candidates?.[0]?.content?.parts;
     if (parts && parts.length > 0) {
         for (const part of parts) {
@@ -38,28 +35,35 @@ export const generateThumbnail = async (prompt: string, aspectRatio: string, api
         }
     }
     
-    throw new Error("A API não retornou imagens.");
+    throw new Error("A API não retornou dados de imagem válidos.");
 
   } catch (error: any) {
     console.error("Erro ao gerar thumbnail:", error);
     
     if (error instanceof Error) {
-        if (error.message.includes('API key not valid') || error.message.includes('permission') || error.message.includes('invalid')) {
-            throw new Error("Sua Chave de API parece ser inválida. Por favor, verifique e tente novamente.");
+        const msg = error.message.toLowerCase();
+        
+        if (msg.includes('api key not valid') || msg.includes('permission') || msg.includes('invalid api key')) {
+            throw new Error("Sua Chave de API parece ser inválida. Verifique se copiou corretamente do Google AI Studio.");
         }
-        // Erro específico de Billing (Faturamento)
-        if (error.message.includes('billed users') || error.message.includes('400')) {
-             throw new Error("Acesso negado pelo Google (Billing). Tente gerar uma nova chave de API em um projeto diferente no Google AI Studio ou aguarde alguns instantes.");
+        
+        if (msg.includes('billed users') || msg.includes('quota')) {
+             // Mensagem amigável para erro de faturamento/cota
+             throw new Error("O Google restringiu o uso deste modelo para esta chave. Tente: 1. Criar uma nova chave em um novo projeto no Google AI Studio. 2. Verificar se seu projeto tem faturamento ativado (embora o modelo deva ter free tier).");
+        }
+        
+        if (msg.includes('429')) {
+            throw new Error("Você atingiu o limite de requisições rápidas. Aguarde um momento e tente novamente.");
         }
     }
-    throw new Error("Falha ao se comunicar com a API do Gemini. Verifique o console para mais detalhes.");
+    throw new Error(`Erro na geração: ${error.message || "Falha de comunicação com a API"}`);
   }
 };
 
 export const enhancePrompt = async (currentPrompt: string, apiKey: string): Promise<string> => {
     try {
         const ai = getAiClient(apiKey);
-        const fullPrompt = `Você é um especialista em criar prompts para IA de geração de imagem. Melhore o seguinte prompt do usuário para ser mais descritivo, vívido e adequado para gerar uma imagem de alta qualidade e visualmente atraente. Retorne apenas o prompt aprimorado, sem nenhum texto extra ou explicações. Prompt do usuário: "${currentPrompt}"`;
+        const fullPrompt = `Você é um especialista em criar prompts para IA de geração de imagem. Melhore o seguinte prompt do usuário para ser mais descritivo, vívido e adequado para gerar uma imagem de alta qualidade para thumbnail de YouTube. Retorne APENAS o prompt aprimorado, em inglês (para melhor qualidade), sem aspas e sem explicações. Prompt original: "${currentPrompt}"`;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
@@ -69,10 +73,8 @@ export const enhancePrompt = async (currentPrompt: string, apiKey: string): Prom
         return response.text ? response.text.trim() : currentPrompt;
     } catch (error) {
         console.error("Erro ao melhorar o prompt:", error);
-        if (error instanceof Error && (error.message.includes('API key not valid') || error.message.includes('permission') || error.message.includes('invalid'))) {
-            throw new Error("Sua Chave de API parece ser inválida. Por favor, verifique e tente novamente.");
-        }
-        throw new Error("Falha ao melhorar o prompt com a IA. Tente novamente.");
+        // Falha silenciosa ou retorno do original em caso de erro na melhoria
+        return currentPrompt;
     }
 }
 
@@ -87,20 +89,17 @@ export const generatePromptFromImage = async (base64Image: string, mimeType: str
     };
 
     const textPart = {
-      text: "Descreva esta imagem em detalhes para que eu possa usar a descrição como um prompt para gerar uma imagem semelhante. Foque nos elementos visuais, estilo, cores e composição. A descrição deve ser otimizada para uma IA de geração de imagem. Retorne apenas o prompt, sem nenhuma frase introdutória como 'Claro, aqui está o prompt:'."
+      text: "Analise esta imagem e crie um prompt detalhado para gerar uma imagem com estilo e composição similares, focado em criar uma Thumbnail de YouTube. Retorne apenas o prompt em texto corrido."
     };
 
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash', // Vision model
+        model: 'gemini-2.5-flash',
         contents: { parts: [imagePart, textPart] },
     });
 
     return response.text ? response.text.trim() : "";
   } catch (error) {
     console.error("Erro ao gerar prompt da imagem:", error);
-    if (error instanceof Error && (error.message.includes('API key not valid') || error.message.includes('permission') || error.message.includes('invalid'))) {
-        throw new Error("Sua Chave de API parece ser inválida. Por favor, verifique e tente novamente.");
-    }
-    throw new Error("Falha ao gerar prompt da imagem. Verifique o console.");
+    throw new Error("Não foi possível analisar a imagem de referência.");
   }
 };
